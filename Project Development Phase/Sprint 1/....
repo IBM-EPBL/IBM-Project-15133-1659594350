@@ -1,1 +1,116 @@
+//kirthi
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <PubSubClient.h> 
+#include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+
+
+const char* ssid = "SMART-G";
+const char* password = "10112019";
+
+#define WT A0
+#define CY D0 
+
+
+#define ID "gbezl0" 
+#define DEVICE_TYPE "ESP8266" 
+#define DEVICE_ID "GAS" 
+#define TOKEN "IOT-12345" 
+
+char server[] = ID ".messaging.internetofthings.ibmcloud.com";
+char publish_Topic1[] = "iot-2/evt/Data1/fmt/json";
+char publish_Topic2[] = "iot-2/evt/Data2/fmt/json";
+char authMethod[] = "use-token-auth";
+char token[] = TOKEN;
+char clientId[] = "d:" ID ":" DEVICE_TYPE ":" DEVICE_ID;
+
+WiFiClient wifiClient;
+PubSubClient client(server, 1883, NULL, wifiClient);
+
+void setup() {
+    Serial.begin(115200);
+//    dht.begin();
+    Serial.println();
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    } 
+    Serial.println("");
+    Serial.println(WiFi.localIP());
+
+    if (!client.connected()) {
+        Serial.print("Reconnecting client to ");
+        Serial.println(server);
+        while (!client.connect(clientId, authMethod, token)) {
+            Serial.print(".");
+            delay(500);
+        }
+        Serial.println("Connected TO IBM IoT cloud!");
+    }
+}
+
+long previous_message = 0;
+void loop() {
+    client.loop();
+    long current = millis();
+    if (current - previous_message > 500) {
+        previous_message = current;
+         float hum = map(analogRead(A0), 0, 1023, 0, 100);
+         float temp = map(digitalRead(D0), 0, 1, 0, 100);
+         if (isnan(hum) || isnan(temp)  ){
+    Serial.println(F("Failed to read sensor!"));
+    return;
+  }
+
+  Serial.print("GAS 1: ");
+  Serial.print(hum);
+
+
+  HTTPClient http;  
+  String postData;  
+  String key = Serial.readString();
+    Serial.print(key);
+  if(hum >= 80)//8870599026
+  {  
+    postData = "username=fantasy&password=596692&to=8870599026&from=FSSMSS&message=Dear user  your msg is ABNORMAL GAS DETECTED IN NORTH EAST LOCATION ,LEVEL IS "+String(analogRead(A0))+", "+String(hum)+"%"+" Sent By FSMSG FSSMSS&PEID=1501563800000030506&templateid=1507162882948811640";
+     Serial.print(postData);
+   http.begin("http://smsserver9.creativepoint.in/api.php");            
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int httpCode = http.POST(postData);   
+  String payload = http.getString();
+  Serial.println(payload);
+  http.end();    
+  delay(1000);
+  }  
+
+       String payload = "{\"d\":{\"Name\":\"" DEVICE_ID "\"";
+              payload += ",\"GAS 1\":";
+              payload += hum;
+              payload += "}}";
+       
+        Serial.print("Sending payload: ");
+        Serial.println(payload);
+
+        if (client.publish(publish_Topic1, (char*) payload.c_str())) { 
+            Serial.println("Published successfully");
+        } else {
+            Serial.println("Failed");
+        }
+//       String payload1 = "{\"d\":{\"Name\":\"" DEVICE_ID "\"";
+//              payload1 += ",\"GAS 2\":";
+//              payload1 += hum;
+//              payload1 += "}}";
+//              Serial.print("Sending payload: ");
+//              Serial.println(payload1);
+//              Serial.println('\n');
+//       
+//         if (client.publish(publish_Topic2, (char*) payload1.c_str())) {
+//            Serial.println("Published successfully");
+//        } else {
+//            Serial.println("Failed");
+//        }
+    }
+}
 
